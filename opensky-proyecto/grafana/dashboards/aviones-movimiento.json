@@ -1,0 +1,85 @@
+{
+  "uid": "opensky-aviones-vivos",
+  "title": "OpenSky | Aviones en movimiento",
+  "tags": [
+    "opensky",
+    "iot",
+    "aviones"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "timezone": "browser",
+  "refresh": "1m",
+  "time": {
+    "from": "now-50m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Posiciones reales de aviones · cobertura mundial",
+      "type": "geomap",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 18
+      },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "opensky-influx"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"aviones\")\n  |> range(start: -45m)\n  |> filter(fn: (r) => r._field == \"latitud\" or r._field == \"longitud\" or r._field == \"velocidad\" or r._field == \"direccion\")\n  |> group(columns: [\"icao24\", \"pais\", \"_field\"])\n  |> last()\n  |> group(columns: [\"icao24\", \"pais\"])\n  |> pivot(rowKey: [\"icao24\", \"pais\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> keep(columns: [\"icao24\", \"pais\", \"latitud\", \"longitud\", \"velocidad\", \"direccion\"])\n  |> rename(columns: {latitud: \"latitude\", longitud: \"longitude\"})\n  |> group()\n",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "opensky-influx"
+          }
+        }
+      ],
+      "options": {
+        "view": {
+          "id": "coords",
+          "lat": 20,
+          "lon": 0,
+          "zoom": 1
+        },
+        "controls": {
+          "showZoom": true,
+          "showAttribution": true,
+          "showScale": true,
+          "showMeasure": false
+        },
+        "layers": [
+          {
+            "type": "markers",
+            "name": "Aeronaves",
+            "config": {
+              "showLegend": true,
+              "style": {
+                "size": {
+                  "fixed": 7
+                },
+                "color": {
+                  "fixed": "#23c7b6"
+                },
+                "opacity": 0.85,
+                "symbol": {
+                  "fixed": "img/icons/marker/circle.svg"
+                }
+              }
+            },
+            "location": {
+              "mode": "coords",
+              "latitude": "latitude",
+              "longitude": "longitude"
+            },
+            "tooltip": true
+          }
+        ]
+      }
+    }
+  ]
+}

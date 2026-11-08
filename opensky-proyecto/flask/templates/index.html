@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="1200">
+  <title>OpenSky · Histórico aéreo</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+{% macro grafica(datos, titulo, subtitulo, etiqueta, unidad) %}
+<section class="panel chart-panel">
+  <div class="panel-head">
+    <div><p class="eyebrow">{{ subtitulo }}</p><h3>{{ titulo }}</h3></div>
+    <span class="pill">{{ datos.capturas }} capturas</span>
+  </div>
+  {% if datos.puntos %}
+  <div class="chart-area">
+    <svg viewBox="0 0 800 310" role="img" aria-label="{{ titulo }}">
+      {% for nivel in range(5) %}
+      <line class="grid-line" x1="55" y1="{{ 35 + nivel * 57.5 }}" x2="745" y2="{{ 35 + nivel * 57.5 }}"/>
+      {% endfor %}
+      {% if datos.puntos|length > 1 %}<polyline class="line-chart" points="{{ datos.linea }}"/>{% endif %}
+      {% for punto in datos.puntos %}
+      <g class="chart-marker" tabindex="0" role="img" aria-label="{{ punto.fecha }}: {{ punto.valor }} {{ unidad }}">
+        <circle class="dot" cx="{{ punto.x }}" cy="{{ punto.y }}" r="5"/>
+        <circle class="hitbox" cx="{{ punto.x }}" cy="{{ punto.y }}" r="14"/>
+        <g class="tooltip" transform="translate({{ punto.x }}, {{ punto.y - 20 }})">
+          <rect x="-90" y="-36" width="180" height="49" rx="8"/>
+          <text x="0" y="-18" text-anchor="middle">{{ punto.valor }} {{ unidad }}</text>
+          <text x="0" y="-1" text-anchor="middle">{{ punto.fecha }}</text>
+        </g>
+      </g>
+      {% endfor %}
+      <text class="axis-label" x="55" y="300">{{ datos.puntos[0].fecha }}</text>
+      <text class="axis-label" x="745" y="300" text-anchor="end">{{ datos.puntos[-1].fecha }}</text>
+    </svg>
+  </div>
+  <div class="chart-foot"><span>mínimo <b>{{ datos.minimo }} {{ unidad }}</b></span><span>máximo <b>{{ datos.maximo }} {{ unidad }}</b></span></div>
+  {% else %}
+  <p class="empty">Todavía no hay capturas históricas disponibles.</p>
+  {% endif %}
+</section>
+{% endmacro %}
+
+<div class="dashboard">
+  <header class="topbar">
+    <div class="brand"><span class="logo">✈</span><div><strong>OpenSky</strong><small>flight intelligence / histórico</small></div></div>
+    <div class="top-actions"><span class="live"><i></i>datos reales</span><span class="pill">últimos 7 días</span></div>
+  </header>
+  <main>
+    <div class="hero">
+      <div><p class="eyebrow">OBSERVATORIO AÉREO</p><h1>Una visión del <em>tráfico mundial.</em></h1>
+      <p class="subtitle">Evolución de aeronaves detectadas, velocidades y países de origen, a partir de muestras almacenadas en PostgreSQL.</p></div>
+      <div class="hero-decoration" aria-hidden="true">◉<span>✈</span></div>
+    </div>
+    {% if error %}<p class="warning" role="alert">{{ error }}</p>{% endif %}
+    <div class="stats-grid">
+      <div class="stat-card"><span>capturas de aviones</span><strong>{{ aviones.capturas }}</strong><small>registros temporales</small></div>
+      <div class="stat-card"><span>máximo detectado</span><strong>{{ aviones.maximo }}</strong><small>aeronaves en una captura</small></div>
+      <div class="stat-card"><span>velocidad máxima media</span><strong>{{ velocidades.maximo }} <i>m/s</i></strong><small>en el período analizado</small></div>
+      <div class="stat-card"><span>países de la última muestra</span><strong>{{ tabla_actual|length }}</strong><small>hasta 20 países mostrados</small></div>
+    </div>
+    <div class="section-title"><div><p class="eyebrow">ANÁLISIS TEMPORAL</p><h2>Evolución histórica</h2></div><span>los gráficos muestran datos guardados, no vuelos simulados</span></div>
+    <div class="charts-grid">
+      {{ grafica(aviones, 'Número de aeronaves', 'SERIE 01', 'aviones', 'aviones') }}
+      {{ grafica(velocidades, 'Velocidad media', 'SERIE 02', 'velocidad', 'm/s') }}
+    </div>
+    <div class="section-title"><div><p class="eyebrow">DESGLOSE POR PAÍSES</p><h2>Actividad registrada</h2></div><span>hasta 20 filas por tabla</span></div>
+    <div class="tables-grid">
+      <section class="panel">
+        <div class="panel-head"><div><p class="eyebrow">RANKING 01</p><h3>Última captura</h3></div><span class="pill">{{ tabla_actual|length }} países</span></div>
+        {% if tabla_actual %}
+        <div class="table-scroll"><table><thead><tr><th>país de origen</th><th class="num">aviones</th><th class="num">cuota</th></tr></thead>
+          <tbody>{% for pais, total, porcentaje, fecha in tabla_actual %}<tr><td class="country">{{ pais }}</td><td class="num">{{ total }}</td><td class="num"><span class="percent">{{ porcentaje or 0 }} %</span></td></tr>{% endfor %}</tbody>
+        </table></div><div class="panel-foot">última captura · {{ tabla_actual[0][3].strftime('%d/%m/%Y %H:%M') }}</div>
+        {% else %}<p class="empty">La próxima captura mostrará aquí los países.</p>{% endif %}
+      </section>
+      <section class="panel">
+        <div class="panel-head"><div><p class="eyebrow">RANKING 02</p><h3>Medias de los últimos 7 días</h3></div><span class="pill">{{ tabla_medias|length }} países</span></div>
+        {% if tabla_medias %}
+        <div class="table-scroll"><table><thead><tr><th>país de origen</th><th class="num">capturas</th><th class="num">aviones</th><th class="num">m/s</th><th class="num">m</th></tr></thead>
+          <tbody>{% for pais, capturas, aviones_media, velocidad, altitud in tabla_medias %}<tr><td class="country">{{ pais }}</td><td class="num">{{ capturas }}</td><td class="num">{{ aviones_media }}</td><td class="num">{{ velocidad if velocidad is not none else '—' }}</td><td class="num">{{ altitud if altitud is not none else '—' }}</td></tr>{% endfor %}</tbody>
+        </table></div><div class="panel-foot">velocidad en m/s · altitud en metros</div>
+        {% else %}<p class="empty">No hay medias disponibles todavía.</p>{% endif %}
+      </section>
+    </div>
+  </main>
+  <footer><span>OPENSKY / HISTÓRICO AÉREO</span><span>Flask · PostgreSQL · InfluxDB</span></footer>
+</div>
+</body>
+</html>

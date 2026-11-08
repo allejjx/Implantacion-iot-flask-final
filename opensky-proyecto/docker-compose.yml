@@ -1,0 +1,104 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto
+    ports:
+      - "1883:1883"
+
+  collector:
+    build: ./collector
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+    environment:
+      OPENSKY_INTERVAL_SECONDS: ${OPENSKY_INTERVAL_SECONDS:-1200}
+      OPENSKY_MAX_AVIONES: ${OPENSKY_MAX_AVIONES:-1500}
+      OPENSKY_MIN_CREDITS: ${OPENSKY_MIN_CREDITS:-24}
+      OPENSKY_CLIENT_ID: ${OPENSKY_CLIENT_ID:-}
+      OPENSKY_CLIENT_SECRET: ${OPENSKY_CLIENT_SECRET:-}
+
+  telegraf:
+    image: telegraf
+    environment:
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+    volumes:
+      - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    depends_on:
+      - mosquitto
+      - influxdb
+
+  influxdb:
+    image: influxdb:2.9.1
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+
+  grafana:
+    image: grafana/grafana
+    environment:
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - influxdb
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: opensky
+      POSTGRES_USER: opensky
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  flask:
+    build: ./flask
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: opensky
+      DB_USER: opensky
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      INFLUX_URL: http://influxdb:8086
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+      INFLUX_ORG: opensky
+      INFLUX_BUCKET: aviones
+    depends_on:
+      - postgres
+      - influxdb
+
+  historico:
+    build: ./flask
+    restart: unless-stopped
+    command: ["python", "historico.py"]
+    environment:
+      HISTORICO_INTERVAL_SECONDS: ${HISTORICO_INTERVAL_SECONDS:-1200}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: opensky
+      DB_USER: opensky
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      INFLUX_URL: http://influxdb:8086
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+      INFLUX_ORG: opensky
+    depends_on:
+      - postgres
+      - influxdb
+
+volumes:
+  influxdb-data:
+    external: true
+    name: 66566b39c5e2ff7f5b9b79f0470dd0f194057b4b19135de20908f5963cc59c06
+
+  grafana-data:
+
+  postgres-data:
